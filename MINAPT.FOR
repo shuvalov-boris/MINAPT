@@ -1,23 +1,23 @@
-c*********************************************************************
-c*
-c*
-c*              M I N A P T
-c*
-c*       Расчет динамической топографии к востоку от Японии
-c*                (синоптический подход)
-c*
-c*    nbobj(nobj) - список блоков-обьектов, участвующих в оптимизации
-c*          если nbobj(i)<0, то параметры блока не оптимизируются и
-c*      в список переменных не включаются
-c*    nblopt(nopt) - список блоков с данными для восстановления через
-c*          минимизацию параметров обьектов
-c*    ifl(1)=1 - вычесть из полей скорости и/или динамической топографии
-c*        вклады в них блоков не участвующих в оптимизации (требуется
-c*      для ускорения счета)
-c*    ifl(2)=1 - в конце оптимизации печатаются рассогласования полей
-c*
-c*
-c*********************************************************************
+!*********************************************************************
+!*
+!*
+!*              M I N A P T
+!*
+!*       Расчет динамической топографии к востоку от Японии
+!*                (синоптический подход)
+!*
+!*    nbobj(nobj) - список блоков-обьектов, участвующих в оптимизации
+!*          если nbobj(i)<0, то параметры блока не оптимизируются и
+!*      в список переменных не включаются
+!*    nblopt(nopt) - список блоков с данными для восстановления через
+!*          минимизацию параметров обьектов
+!*    ifl(1)=1 - вычесть из полей скорости и/или динамической топографии
+!*        вклады в них блоков не участвующих в оптимизации (требуется
+!*      для ускорения счета)
+!*    ifl(2)=1 - в конце оптимизации печатаются рассогласования полей
+!*
+!*
+!*********************************************************************
 	common/gddat/ icninf,istinf, nknot, iflgtp, iflgvr
      1	, iflgtd, x0, xr, epsil, lentyp, nb, idat, nbs, nbvel
 	common /mindat/ifl(10),nobj,nbobj(20),nopt,nblopt(20)
@@ -38,10 +38,10 @@ $include:'geodyn.for'
      *	DS(MINFUN_TRIAL_NUMBER) /MINFUN_TRIAL_NUMBER * 1.e-5/
 	INTEGER !KOD(8)/11,0,9,1800,200,3*0/,
      *    KOD(8)/						! min03
-     *		MINFUN_TRIAL_NUMBER,	!
+     *		OPT_VAR_NUMBER,	!
      *		0,						!
      *		0,
-     *		OPT_VAR_NUMBER,			! кол-во вычислений мин. функции???
+     *		MINFUN_TRIAL_NUMBER,			! кол-во вычислений мин. функции???
      *		200,					! кол-во итераций ?
      *		0,						! точность предсталения числа (0-простая, 1-двойная) ???
      *		2*0/,
@@ -52,16 +52,19 @@ $include:'geodyn.for'
      * !, 0, 0/
 	REAL X(OPT_VAR_NUMBER*MINFUN_TRIAL_NUMBER),
      *     FX(MINFUN_TRIAL_NUMBER*10+1),datblk(100),prm(97)
-	integer nprm(20),nspblk(20),ibgobj(20),ibprm(20)
+	integer nprm(20),nspblk(20),ibgobj(20),ibprm(20), np
 	integer idatbl(200),ipasp(6),iprm(194), optimizationIsEnabled
 	equivalence (datblk,idatbl,ipasp),(ipasp(3),nspbl),
      *(ipasp(4),npr),(ipasp(5),nf),(datblk(4),prm),(idatbl(7),iprm)
 	real t(NMAX),wk(NMAX*(NKMAX+6)*8), piw(4,2)
 	integer*2 iwk(202), nbcont, nbs
-	data MAXREC/1000/, fxopt/-1.0/
+	data MAXREC/1000/, fxopt/999999999.0/
 	
-	write (*, *) 'MINAPT is running'
+	write (*, '(30I5)')  NUMF
+    1 format(30I5)
 	open(23, FILE='minapt.log', ACTION='write')
+	count = nargs()
+	write(*, *) 'Количество параметров коммандной строки', count
 
 C			ЧТЕНИЕ ВХОДНЫХ ДАННЫХ
       open(unit=11, file=NAMARC, action='read', status='old')
@@ -232,7 +235,7 @@ C		Инициализация массива (X) оптимизируемых параметров
 
 C      call CheckRm()	
 
-	open(unit=33, file=RESFILE, action='write')
+!	open(unit=33, file=RESFILE, action='write')
 	
 	if (optimizationIsEnabled.eq.1) then 
 	  write (*, *) 'MINAPT: call MINFUN'
@@ -289,11 +292,11 @@ c***********************************************************************
 C	common /mindat/ifl(10),nobj,nbobj(20),nopt,nblopt(20)
 	common /optres/ fxopt, iFunTrialNumber
 $include:'geodyn.for'
-	real x(1),v(3), A0, Rm, R0
-	real t(NMAX),wk(NMAX*(NKMAX+6)*8), xxyy(2)
+	real x(1), A0, Rm, R0
+	real t(NMAX),wk(NMAX*(NKMAX+6)*8)
 	real vg(VMAX), vag(VMAX), dist(VMAX), vr(VMAX),
-	*  cx, cy, dRm, rm1, rm2
-	integer*2 idRm, nbs
+	*  cx, cy, dRm
+	integer*2 nbs
 
       write(*, *) 'FUN: running, nknot =', nknot
 	write(33, *) 'Начало выполнения FUN'
@@ -338,7 +341,7 @@ C		Вывод значений параметров целевой функции после оптимизации
      *   dat(ibgfr/2+3+(nknot+1)*2 + i), i = 1, nknot + 1)
    18 format(3F15.6)
       write(33, 7) X(3+nknot*2), X(4+nknot*2), X(5+nknot*2)
-    7 format(10x,'A0',13x,'Rm',13x,'R0'/3F15.6, I3)	 
+    7 format(10x,'A0',13x,'Rm',13x,'R0'/3F15.6)	 
 
 c*          Расчет сплайн-коэффициентов
       cibg=lentyp(1,nbs) / 2 + 4
@@ -369,6 +372,7 @@ C*		РАСЧЕТ ТАНГЕНЦИАЛЬНЫХ КОМПОНЕНТ СКОРОСТИ
      *  dist,vg,vag,tga,vr,nv,iflgvr,epsil,irc)
 	write(*,160) irc
 160	format(3x,'программа vprep. irc=',i4)
+!!!! ПРОВЕРИТЬ МЕНЯЕТ ЛИ VPREP УЗЛЫ ???									//TODO
 
 C		Создание файла для визуализации соответствующего сплайна
 	call WriteSplineXY(int(nknot+1), dat(cibg), dat(cibg+nknot+1), 
@@ -394,108 +398,32 @@ c		Вывод в файл расстояний до центра вихря упорядоченных скоростей
 C		Расчет A0 и Rm путем перебора интервалов по радиальному профилю...
 C		Формулы для A0 и Rm посчитаны путем минимизации целевой функции
 C		При первой итерации производится расчет целевой функции с
-C			параметрами A0 и Rm по умолчанию	
-      do 666 j = 0, nvi - 1
-	  if (j.eq.0) goto 555
-	  call CalculateSumParameters(nvi, dat(ix), dat(iy), vg, cx, cy,   
-     *    j, Vl, Rl, VRl, RRl, Nl, sVg, Rg, VRg, RRg, Ng)
-C		расчет границ интервала, для которого считаются параметры A0 и Rm
-	  dr1 = sqrt((dat(ix+j)-cx)**2 + (dat(iy+j)-cy)**2)
-	  dr2 = sqrt((dat(ix+j+1)-cx)**2 + (dat(iy+j+1)-cy)**2)	
-!	  write(*, *) 'dr1&dr2', dr1, dr2
-C	  goto 333 
-C		расчет Rm и A0 | первая система	  
-	  call CalculateRmA0(1, Rm1, A01, R0, dr1, dr2, dRm1, irc1, 
-     *    Vl, Rl, VRl, RRl, Nl, sVg, Rg, VRg, RRg, Ng)
-	  if (iand(irc1, 2).eq.2.and.dRm1.lt.dRm) then
-	    dRm = dRm1
-	    Rm = Rm1
-	    A0 = -A01
-	  endif
-C		расчет Rm и A0 | вторая система
-	  call CalculateRmA0(2, Rm2, A02, R0, dr1, dr2, dRm2, irc2, 
-     *    Vl, Rl, VRl, RRl, Nl, sVg, Rg, VRg, RRg, Ng)  
-        if (iand(irc2, 2).eq.2.and.dRm2.lt.dRm) then
-	    dRm = dRm2
-	    Rm = Rm2
-	    A0 = -A02
-	  endif
-!	  write(*, *) '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'	  
-	  if (irc1.gt.0.or.irc2.gt.0) then 
-!	    write(33, 7) A0, Rm, R0, j	
-          tmptmp = 0.
-	  else 
-	    goto 666
-	  endif
-	
-C*		РАСЧЕТ ЦЕЛЕВОЙ ФУНКЦИИ
-  555 open(19, FILE='func.log', ACTION='write')
-      fx = 0.0
-      do i = 1, nvi
-	  dr = sqrt((cx - dat(ix + i))**2 + (cy - dat(iy + i))**2)
-	  if (dr.gt.R0) goto 12
-	  Vteor = VelocityTeor(dr, A0, Rm, R0)
-	  FX = fx + (vg(i) - Vteor)**2+vag(i)**2
-	  xxyy(1)=dat(ix+i-1)
-        xxyy(2)=dat(iy+i-1)
-        call cnkmdg(fi,lambda,xxyy,v,1,dx,dy,0,0)
-   12   write(19, *) dr, xxyy(1), xxyy(2), Vteor, vg(i),dist(i)+x0
-      enddo   
-	close(19)
+C			параметрами A0 и Rm по умолчанию
+	CALL ApproximateProfile(nvi, dat(ix), dat(iy), int(nknot+1),  
+     *	dat(cibg), dat(cibg+nknot+1), dat(cibg + (nknot+1) * 2),  
+     *	dat(cibg + (nknot+1) * 3), Vg, Vag, 
+     *    Fi, Lambda, CX, CY, Rm, A0, R0)
 
-	FX = fx / nvi
-	
-C*		ВЫВОД ОПТИМАЛЬНОГО РЕЗУЛЬТАТА
-	if (fxopt.lt.0.or.fx.lt.fxopt) then
+      write(33, '(3F15.6)') A0, Rm, R0
 
-	  write(33, *) 'NEW OPTIMUM!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
-	  fxopt = fx
-        write (33, *) 'FX = ', fx
-        write (33, *) 'FXOPT =', FXOPT
-	  
-		! Вывод радиального профиля тангенциальных скоростей  
-	  open(20, FILE='profileR.opt', ACTION='write')
-	  open(26, FILE='profileT.opt', ACTION='write')
-        do i = 1, nvi
-	    dr = sqrt((cx - dat(ix + i))**2 + (cy - dat(iy + i))**2)
-	    if (dr.gt.R0) goto 13
-	    Vteor = VelocityTeor(dr, A0, Rm, R0)
-	    FX = fx + (vg(i) - Vteor)**2+vag(i)**2
-          write(20, 32) dr, vg(i)
-	    write(26, 32) dr, Vteor
-   13	    continue
-        enddo   
-        close(20)
-	  close(26)
-   32 format(3F12.4)
-      
-C	Создание файла для визуализации оптимизированных узлов
-	  call WriteXY(nknot+1, dat(cibg), dat(cibg + nknot + 1),
-     *    cx, cy, fi, lambda, 'nodes.opt', 2, dat(cibg+(nknot+1)*2))
-C	Создание файла для визуализации оптимизированного сплайна	  	
-	  call WriteSplineXY(int(nknot+1), dat(cibg), dat(cibg+nknot+1), 
-     *  dat(cibg+(nknot+1)*2), dat(cibg+(nknot+1)*3), fi, lambda,
-     *  'spline.opt')
-C	Создание файла для визуализации легенды (тангенциальной скорости)
-        call WriteXY(nvi, dat(ix - 1), dat(iy - 1), cx, cy, fi, lambda,
-     *    'legend_vg.txt', 1, vg(1))
-      endif 
+	fx = ObjectiveFunctionValue(nvi, dat(ix), dat(iy), Vg, Vag, 
+     *    Fi, Lambda, CX, CY, A0, Rm, R0, 1)
 
-!	write(*, *) 'dRm =', dRm
-    
-  666 continue
 c*		Вывод pезультов pасчета
 C      write(33, 13) ircis, irctp, ircsp, irc, 
 C     *  itypcn, iflgtp, iflgsp, iflgvr, iflgtd, nknot, x0min, x0, x0max
 C     *  , xr, sperr, nv
 C   13 format(4I2, ' ', 5I1, I3, 5F8.3, I5)	 
-	
-	  write (33, *) 'FX = ', fx
-        write (33, *) 'FXOPT =', FXOPT
+
+        write (33, *) 'Thus FX = ', FX
+	  write (33, *) 'FXOPT = ', FXopt
+	  if (FX < FXopt) then
+	    FXopt = FX
+	    write(33, *) ' NEW OPTIMUM!$ ', FX
+	  end if
 	  iFunTrialNumber = iFunTrialNumber + 1
-  999 write(*, *) 'RUN: the end ', iFunTrialNumber
+  999 write(*, *) 'RUN: the end iFTN = ', iFunTrialNumber
       
-c	close(33)
       close(11)
 	close(22)
 
@@ -528,32 +456,6 @@ C		проверка на изменение оптимизируемых параметров в функции FUN
 
 c*********************************************************************
 c*
-c*						VelocityTeor
-c*
-c*  	   Расчет теоретической скорости согласно модели вихря
-c*	    
-c*	   A0, Rm, R0 описаны в заголовке подрпограммы Fun
-c*	   dr - расстояние от точки, в которой необходимо посчитать
-c*			теоретическую скорость, до центра вихря
-c*
-c*		Функция возвращает значение теоретической скорости в точке,
-c*			находящейся на расстояии dr от центра вихря	
-c*********************************************************************
-	REAL FUNCTION VelocityTeor(dr, A0, Rm, R0)
-        IMPLICIT NONE
-	  REAL, INTENT(IN) :: dr, A0, Rm, R0
-
-        if (dr.lt.Rm) then 
-	    VelocityTeor = - 2 * A0 * dr / (R0 * Rm)
-        else 
-	    VelocityTeor = 2 * A0 / (R0 * (R0 - Rm)) * (dr - R0) !*(-1) ? см. Ф. тока	  
-	  endif
-      END
-
-
-
-c*********************************************************************
-c*
 c*							Swap
 c*
 c*		обмен значениями между двумя переменными A и B
@@ -569,7 +471,7 @@ c*********************************************************************
 	  A = B
 	  B = tmp
 
-	END
+	END													
 	
 
 c*********************************************************************
@@ -707,6 +609,223 @@ c*         сплайн замкнутый
 
 c*********************************************************************
 c*
+c*						VelocityTeor
+c*
+c*  	   Расчет теоретической скорости согласно модели вихря
+c*	    
+c*	   A0, Rm, R0 описаны в заголовке подрпограммы Fun
+c*	   dr - расстояние от точки, в которой необходимо посчитать
+c*			теоретическую скорость, до центра вихря
+c*
+c*		Функция возвращает значение теоретической скорости в точке,
+c*			находящейся на расстояии dr от центра вихря	
+c*********************************************************************
+      REAL FUNCTION VelocityTeor(dr, A0, Rm, R0)
+        IMPLICIT NONE
+	  REAL, INTENT(IN) :: dr, A0, Rm, R0
+	  
+	    if (dr.lt.Rm) then 
+	      VelocityTeor = - 2 * A0 * dr / (R0 * Rm)
+        else 
+	      VelocityTeor = 2 * A0 / (R0 * (R0 - Rm)) * (dr - R0) !*(-1) ? см. Ф. тока	  
+	  endif
+      END
+
+
+
+c*********************************************************************
+c*
+c*					ApproximateProfile
+c*			
+c*	  	Аппроксимация радиального профиля скорости вихря 
+c*		путем расчета амплитуды A0 и радиального значения максимальной скорости
+c*
+c*	Параметры:
+c*		N - количество скоростей
+c*		X(N) - x-координаты скоростей
+c*		Y(N) - y-координаты скоростей
+c*		V(N) - значения скоростей
+c*		CX, CY - координаты центра вихря
+c*		INDEX - количество скоростей, лежащих между центром вихря и 
+c*				предполагаемым Rm
+c*		Vl - сумма значений скоростей, лежащих "не правее" от скорости
+c*			   с номером INDEX
+c*		Ng - количество	скоростей, лежащих "правее" от скорости
+c*			   с номером INDEX
+c*		...
+c*********************************************************************
+	SUBROUTINE ApproximateProfile(N, X, Y, NK, XK, YK, TK, SC, Vt, Vn, 
+     *  Fi, Lambda, CX, CY, Rm, A0, R0)
+	  IMPLICIT NONE
+	  INTEGER, INTENT(IN) :: N, NK
+        REAL,    INTENT(IN) :: X(N), Y(N), XK(NK), YK(NK), TK(NK), 
+     *                         SC(NK * 3 * 2), Vt(N), Vn(N), 
+     *						 Fi, Lambda, CX, CY, R0
+	  REAL                :: Rm, A0
+
+        REAL, EXTERNAL :: ObjectiveFunctionValue
+
+	  REAL :: fx, fxopt, A0opt, RMopt
+
+	  REAL    :: Vl, Rl, VRl, RRl, Vg, Rg, VRg, RRg
+        INTEGER :: Nl, Ng
+
+	  INTEGER i, irc1, irc2
+	  REAL dr1, dr2, dRm, dRm1, dRm2, Rm1, Rm2, A01, A02
+	  
+	  write(*, *) 'run ApproximateProfile'
+
+	  write(*, *) 'Rm, A0, R0 =', Rm, A0, R0
+
+	  A0opt = A0; RMopt = Rm
+
+	  FXopt = ObjectiveFunctionValue(N, X, Y, Vt, Vn, Fi, Lambda,  
+     *                         CX, CY, A0, Rm, R0, 0)
+	  write(*, *) 'FXinit = ', FXopt
+
+        DO i = 1, N - 1 !или через каждый километр
+	    call CalculateSumParameters(N, X, Y, Vt, CX, CY,   
+     *    i, Vl, Rl, VRl, RRl, Nl, Vg, Rg, VRg, RRg, Ng)
+C		расчет границ интервала, для которого считаются параметры A0 и Rm
+	    dr1 = sqrt((X(i)-cx)**2 + (Y(i)-cy)**2)
+	    dr2 = sqrt((X(i+1)-cx)**2 + (Y(i+1)-cy)**2)	
+C		расчет Rm и A0 | первая система	  
+	    call CalculateRmA0(1, Rm1, A01, R0, dr1, dr2, dRm1, irc1, 
+     *      Vl, Rl, VRl, RRl, Nl, Vg, Rg, VRg, RRg, Ng)
+	    if (iand(irc1, 2).eq.2.and.dRm1.lt.dRm) then
+	      dRm = dRm1
+	      Rm = Rm1
+	      A0 = -A01
+	    endif
+C		расчет Rm и A0 | вторая система
+	    call CalculateRmA0(2, Rm2, A02, R0, dr1, dr2, dRm2, irc2, 
+     *      Vl, Rl, VRl, RRl, Nl, Vg, Rg, VRg, RRg, Ng)  
+          if (iand(irc2, 2).eq.2.and.dRm2.lt.dRm) then
+	      dRm = dRm2
+	      Rm = Rm2
+	      A0 = -A02
+	    endif
+	    if (irc1.gt.0.or.irc2.gt.0) then 
+	      !write(*, *) A0, Rm, R0, i	
+	      cycle
+	    endif
+
+	  FX = ObjectiveFunctionValue(N, X, Y, Vt, Vn, Fi, Lambda,  
+     *                         CX, CY, A0, Rm, R0, 0)
+
+	  if (FX < FXopt) then
+	    write(*, *) ' Neww MINIMUM                     ', FX
+	    write(*, *) ' A0, Rm = ', A0, Rm 
+	    !CALL ObjFuncResultsToLog(N, X, Y, NK, XK, YK, TK, 
+!     *	SC, Vt, Vn, Fi, Lambda, CX, CY, A0, Rm, R0)
+	    FXopt = FX
+	    A0opt = A0; RMopt = RMopt
+	  end if
+ 
+	  END DO
+
+	  A0 = A0opt; Rm = RMopt
+
+	END
+
+
+c*********************************************************************
+c*
+c*					ObjectiveFunctionValue
+c*
+c*			Расчет целевой функции
+c*
+c*********************************************************************
+	REAL FUNCTION ObjectiveFunctionValue(N, X, Y, Vt, Vn, 
+     *    Fi, Lambda, CX, CY, A0, Rm, R0, Mode)
+        IMPLICIT NONE
+	  INTEGER, INTENT(IN) :: N, Mode
+	  REAL,    INTENT(IN) :: X(N), Y(N), Vt(N), Vn(N), Fi, Lambda,
+     *                         CX, CY, A0, Rm, R0
+	  REAL, EXTERNAL :: VelocityTeor
+
+	  INTEGER :: i
+	  REAL    :: fx = 0., dr, xy(2), Vteor, v(1), dx, dy
+
+	  OPEN(19, FILE='func.log', ACTION='write')
+        fx = 0.0
+        DO i = 1, N
+	    dr = sqrt((cx - X(i))**2 + (cy - Y(i))**2)
+	    IF (dr > R0) cycle
+	    Vteor = VelocityTeor(dr, A0, Rm, R0)
+	    FX = fx + (Vt(i) - Vteor)**2
+		if (Mode == 1) Fx = fx + Vn(i)**2
+	   ! xy(1)=X(i)
+         ! xy(2)=Y(i)
+         ! CALL cnkmdg(fi,lambda,xy,v,1,dx,dy,0,0)
+          !write(19, *) dr, xy(1), xy(2), Vteor, Vt(i)!,dist(i)+x0
+        END DO   
+	  CLOSE(19)
+
+	  ObjectiveFunctionValue = fx / N
+
+	END
+	  
+	 
+c*********************************************************************
+c*
+c*				ObjFuncResultsToLog
+c*
+c*		Вывод оптимального результата
+c*
+c*********************************************************************	 
+      SUBROUTINE ObjFuncResultsToLog(N, X, Y, NK, XK, YK, TK, 
+     *	SC, Vt, Vn, Fi, Lambda, CX, CY, A0, Rm, R0)
+	  IMPLICIT NONE
+        INTEGER, INTENT(IN) :: N, NK
+	  REAL,    INTENT(IN) :: X(N), Y(N), XK(NK), YK(NK), TK(NK), 
+     *		Vt(N), Vn(N), SC(NK*2*3), Fi, Lambda, CX, CY, A0, Rm, R0
+
+	  REAL, EXTERNAL :: VelocityTeor 
+
+	  REAL :: dr, Vteor
+	  INTEGER :: i
+
+		! Вывод радиального профиля тангенциальных скоростей  
+	  open(20, FILE='profileR.opt', ACTION='write')
+	  open(26, FILE='profileT.opt', ACTION='write')
+        do i = 1, N
+	    dr = sqrt((CX - X(I))**2 + (CY - Y(i))**2)
+	    if (dr.gt.R0) cycle
+	    Vteor = VelocityTeor(dr, A0, Rm, R0)
+          write(20, 32) dr, Vt(i)
+	    write(26, 32) dr, Vteor
+        enddo   
+        close(20)
+	  close(26)
+   32   format(3F12.4)
+      
+C	Создание файла для визуализации оптимизированных узлов
+	  CALL WriteXY(NK, XK, YK, CX, CY, Fi, Lambda, 'nodes.opt', 2, TK)
+C	Создание файла для визуализации оптимизированного сплайна	  	
+        CALL WriteSplineXY(NK, XK, YK, TK, SC, Fi, Lambda, 'spline.opt')
+C	Создание файла для визуализации легенды (тангенциальной скорости)
+        CALL WriteXY(N, X, Y, CX, CY, Fi, Lambda,'legend_vg.txt', 1, Vt)
+
+	END
+
+
+
+c*********************************************************************
+c*
+c*					ToCircularModel
+c*
+c*********************************************************************
+	SUBROUTINE ToCircularModel(Vt, Vn, R0, NK, XK, YK, TK, SC, 
+     *    CX, CY, Fi, Lambda)
+!	  IMPLICIT NONE
+	  
+
+
+	END
+	  
+c*********************************************************************
+c*
 c*					CalculateSumParameters
 c*			
 c*	  	Расчет параметров целевой функции, зависящих от выбора Rm
@@ -729,25 +848,18 @@ c*********************************************************************
 	SUBROUTINE CalculateSumParameters(N, X, Y, V, CX, CY, INDEX,
      *    Vl, Rl, VRl, RRl, Nl, Vg, Rg, VRg, RRg, Ng)
 	  IMPLICIT NONE
-	  INTEGER, INTENT(IN) :: N, INDEX
-        REAL,    INTENT(IN) :: X(N), Y(N), V(N), CX, CY
+	  INTEGER, INTENT(IN)  :: N, INDEX
+        REAL,    INTENT(IN)  :: X(N), Y(N), V(N), CX, CY
 	  REAL,    INTENT(OUT) :: Vl, Rl, VRl, RRl, Vg, Rg, VRg, RRg
-        INTEGER, INTENT(OUT):: Nl, Ng
+        INTEGER, INTENT(OUT) :: Nl, Ng
 
 	  INTEGER i
 	  REAL dr
 
-	  Vl = 0. 
-	  Rl = 0. 
-	  VRl = 0. 
-	  RRl = 0.
-	  Nl = 0
-	  Vg = 0.
-	  Rg = 0.
-	  VRg = 0.
-	  RRg = 0.
-	  Ng = 0
-	
+	  Vl = 0.; Rl = 0.; VRl = 0.; RRl = 0.
+	  Vg = 0.; Rg = 0.; VRg = 0.; RRg = 0.
+	  Nl = 0; Ng = 0		 
+
 !	  write(*, *) 'CSP: N =', N, ', index =', INDEX
         do i = 1, N
 	    dr = sqrt((CX - X(i))**2 + (CY - Y(i))**2)
@@ -784,8 +896,8 @@ c*		Vl,...,Ng - см. в заголовке п/п	CalculateSumParameters
 c*		IRC = ab(биты) - код возврата
 c*		  = -1 - ошибка значения переменной INDEX
 c*		  a=1 - 0 <= Rm <= R0
-c*		  b=1 - Rm лежит в интервале, для которого и рассчитывался
-c*		
+c*		  b=1 - Rm лежит в интервале, для которого и рассчитывался: 
+c*				DR1 <= Rm <=DR2
 c*********************************************************************
 	SUBROUTINE CalculateRmA0(INDEX, Rm, A0, R0, DR1, DR2, DRm, IRC, 
      *    Vl, Rl, VRl, RRl, Nl, Vg, Rg, VRg, RRg, Ng)
@@ -850,7 +962,7 @@ c*		FI, LAMBDA - начало географической системы координат (д. и ш.)
 c*		FILENAME - имя файла вывода
 c*		IFLG = (ab) - флаги вывода 
 c*		   a=1 - выводить координаты cx cy
-c*		   b=1 - выводить дополнительнsq столбец LEGEND(N)
+c*		   b=1 - выводить дополнительный столбец LEGEND(N)
 c*
 c*********************************************************************
       SUBROUTINE WriteXY(N, X, Y, CX, CY, FI, LAMBDA, FILENAME, IFLG, 
@@ -924,6 +1036,7 @@ c*********************************************************************
 	  REAL x(N+1), y(N+1), legend(1), ts
 	  CHARACTER :: sp_coef_filename*50
 	  CHARACTER(LEN = *), PARAMETER :: scoef = "coef_"
+
 	  sp_coef_filename = scoef // FILENAME
 	  write(*,*) 'new sp_coef filename is ', sp_coef_filename
 	  open(17, FILE=sp_coef_filename, ACTION='write')
