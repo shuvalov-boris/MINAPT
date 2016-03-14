@@ -91,14 +91,15 @@ c               nbin (блок скоростей)
 	iv1=iy+nvi			 !начало x-координат скоростей в массиве dat
 	iv2=iv1+nvi			 !начало y-координат скоростей в массиве dat
 c               nknot
-	ibg=lentyp(1,nbcont)
-	nknot=idat(ibg+3)
-	numvar=idat(ibg+5)
-	ixk=ibg/2+4
+	cibg=lentyp(1,nbcont)
+	nknot=idat(cibg+3)
+	numvar=idat(cibg+5)
+	ixk=cibg/2+4
 	iyk=ixk+nknot
 	itk=iyk+nknot
 	ic1=itk+nknot
 	ic2=ic1+(nknot-1)*3
+	write(*, *) 'vprep: numvar =', numvar
 	if(numvar.ne.0) go to 10
 c*              контур не построен, рассчитываем сплайн-коэффициенты
       write(*, *) 'VPREP FAIL Рассчитываем сплайн коэффициенты'
@@ -106,7 +107,7 @@ c*              контур не построен, рассчитываем сплайн-коэффициенты
 	if(irc.ne.0) return
 	call  icsccu(dat(itk),dat(iyk),nknot,dat(ic2),nknot-1,irc)
 	if(irc.ne.0) return
-	idat(ibg+5)=1
+	idat(cibg+5)=1
 C	Создание файла для визуализации сплайна	  	
 	  call WriteSplineXY(int(nknot+1), dat(cibg), dat(cibg+nknot+1), 
      *  dat(cibg+(nknot+1)*2), dat(cibg+(nknot+1)*3), fi, lambda,
@@ -221,7 +222,7 @@ C		Расчет тангенциального вектора в геогр. координатах
 	if (vi1.ne.0) then
 	  vangle=atan2(vi2, vi1)
 	else 
-	  vangle = 3.14/2 * sign(1., vi2)
+	  vangle = 3.14/2 * sign(1., vi2)	  !?
 	endif
       sangle=atan(tga(nv))
 

@@ -87,12 +87,15 @@ c
      *  NBMAX,LENMAX,piw,MAXREC,iwk,wk,wk(mr1*2+1),wk(mr1*4+1),irc)
 	write(6,17) irc
    17 format(3x,'программа inpsfd завершилась с irc=',i4)
-	ircis=irc	
-C			Поиск блока с контуром
+	ircis=irc
+	
+
+C			Поиск блоков с контуром и скоростями
 	do i = 1, nb
 	  if (lentyp(2, i).eq.1) nbcont = i
 	  if (lentyp(2, i).eq.0) nbvel = i
       enddo	
+
 C			Вывод координат точек контура в файл для визуадизации
       cibg = lentyp(1, nbcont) + 4
       incnt = idat(lentyp(1, nbcont) + 3)
@@ -138,6 +141,24 @@ C	nknot = indcnt
 	
       nbobj(1) = nbs
 
+C		Приведение скоростей к круговой модели для конкретного вихря
+      write(*, *) 'Velocities to circular model'
+      ivcnt = idat(lentyp(1, nbvel) + 3)
+	ix = lentyp(1, nbvel) / 2 + 4
+ 	iy = ix + ivcnt
+	ivx = iy + ivcnt
+	ivy = ivx + ivcnt
+
+	incnt = idat(lentyp(1, nbs) + 3)
+	inx = lentyp(1, nbs) / 2 + 4
+	iny = inx + incnt
+	intt = iny + incnt
+	insc = intt + incnt
+!      call ToCircularModel(ivcnt, dat(ix), dat(iy), dat(ivx), dat(ivy),  
+!     *    R0, incnt, dat(inx), dat(iny), dat(intt), dat(inSC), 0., 0., 
+!     *    Fi, Lambda)     	     	
+!	write(*, *) 'ToCM has finished'
+
 c		сортировка блока скоростей по возрастанию расстояния до центра вихря
 C			Вывод координат начала векторов скоростей в файл для визуадизации
       ivibg = lentyp(1, nbvel) / 2 + 4
@@ -146,7 +167,7 @@ C			Вывод координат начала векторов скоростей в файл для визуадизации
      *  fi, lambda, 'velbeg.txt', 0, dat(ivibg))
            
 	open(31, FILE='distbeforesort.txt', ACTION='write')
-      do j = 1, ivcnt
+      do j = 0, ivcnt-1
         dr = sqrt(dat(ivibg+j)**2+dat(ivibg+ivcnt+j)**2)
 	  write(31, *) dr
 	  end do	  
@@ -372,7 +393,8 @@ C*		РАСЧЕТ ТАНГЕНЦИАЛЬНЫХ КОМПОНЕНТ СКОРОСТИ
      *  dist,vg,vag,tga,vr,nv,iflgvr,epsil,irc)
 	write(*,160) irc
 160	format(3x,'программа vprep. irc=',i4)
-!!!! ПРОВЕРИТЬ МЕНЯЕТ ЛИ VPREP УЗЛЫ ???									//TODO
+      write(*, *) 'after vprep running vg is', vg(1), vg(2), ' ...'
+!!!! ПРОВЕРИТЬ МЕНЯЕТ ЛИ VPREP УЗЛЫ ???								//TODO
 
 C		Создание файла для визуализации соответствующего сплайна
 	call WriteSplineXY(int(nknot+1), dat(cibg), dat(cibg+nknot+1), 
@@ -579,7 +601,7 @@ c*********************************************************************
 	  write(*, *) 'CalculateSplineCoefficients'
 	  write(*, *) 'NKNOT =', 	NKNOT
 	  write(*, *) 'XK YK TK'
-	  write(*, *) (XK(i), YK(i), TK(i), i = 1, NKNOT) 
+	  write(*, '(3F12.6)') (XK(i), YK(i), TK(i), i = 1, NKNOT) 
 
 	  IRC = 0
 
@@ -657,13 +679,15 @@ c*********************************************************************
 	SUBROUTINE ApproximateProfile(N, X, Y, NK, XK, YK, TK, SC, Vt, Vn, 
      *  Fi, Lambda, CX, CY, Rm, A0, R0)
 	  IMPLICIT NONE
+	          
+	  REAL, EXTERNAL :: ObjectiveFunctionValue
+	  
 	  INTEGER, INTENT(IN) :: N, NK
         REAL,    INTENT(IN) :: X(N), Y(N), XK(NK), YK(NK), TK(NK), 
-     *                         SC(NK * 3 * 2), Vt(N), Vn(N), 
+     *                         SC(NK * 3 * 2), Vt(N), Vn(N), 		 ! or NK-1 ?
      *						 Fi, Lambda, CX, CY, R0
 	  REAL                :: Rm, A0
 
-        REAL, EXTERNAL :: ObjectiveFunctionValue
 
 	  REAL :: fx, fxopt, A0opt, RMopt
 
@@ -682,6 +706,7 @@ c*********************************************************************
 	  FXopt = ObjectiveFunctionValue(N, X, Y, Vt, Vn, Fi, Lambda,  
      *                         CX, CY, A0, Rm, R0, 0)
 	  write(*, *) 'FXinit = ', FXopt
+	  write(*, *) 'Vt(1..2) =', Vt(1), Vt(2)
 
         DO i = 1, N - 1 !или через каждый километр
 	    call CalculateSumParameters(N, X, Y, Vt, CX, CY,   
@@ -739,11 +764,13 @@ c*********************************************************************
 	REAL FUNCTION ObjectiveFunctionValue(N, X, Y, Vt, Vn, 
      *    Fi, Lambda, CX, CY, A0, Rm, R0, Mode)
         IMPLICIT NONE
+	  
+	  REAL, EXTERNAL :: VelocityTeor
+	  
 	  INTEGER, INTENT(IN) :: N, Mode
 	  REAL,    INTENT(IN) :: X(N), Y(N), Vt(N), Vn(N), Fi, Lambda,
      *                         CX, CY, A0, Rm, R0
-	  REAL, EXTERNAL :: VelocityTeor
-
+	  
 	  INTEGER :: i
 	  REAL    :: fx = 0., dr, xy(2), Vteor, v(1), dx, dy
 
@@ -816,13 +843,99 @@ c*
 c*					ToCircularModel
 c*
 c*********************************************************************
-	SUBROUTINE ToCircularModel(Vt, Vn, R0, NK, XK, YK, TK, SC, 
-     *    CX, CY, Fi, Lambda)
-!	  IMPLICIT NONE
-	  
+	SUBROUTINE ToCircularModel(N, X, Y, VX, VY, R0, NK, XK, YK, TK,  
+     *    SC, CX, CY, Fi, Lambda)
+	  IMPLICIT NONE
 
+	  REAL, EXTERNAL :: TangentialComponent
+	  
+	  INTEGER, INTENT(IN) :: N, NK
+	  REAL, INTENT(IN) :: X(N), Y(N), VX(N), VY(N), R0, 
+     *					  XK(NK), YK(NK), TK(NK),
+     *					  SC((NK-1),3,2), CX, CY, Fi, Lambda
+
+	  INTEGER :: i
+	  REAL :: tc(N), crv(N), xx, yy, tt, tga(5), vr, dist
+
+	  OPEN(30, FILE = 'tangcomp.txt', ACTION = 'write')
+
+	 
+	  DO i = 1, N
+	    write(*, *) 'call trdist', i
+	    tc(i) = TangentialComponent(CX, CY, X(i), Y(i), VX(i), VY(i))
+
+          CALL  trdist(fi,lambda,x(i),y(i),xk,yk,tk,nk,sc,nk-1,xx,yy,tt,
+     *      tga, vr, dist, 0.3, 7)
+          crv(i) = vr	
+        END DO
+
+	 xx = TangentialComponent(0., 0., 0., 15.,  100.,    0.)
+	 xx = TangentialComponent(0., 0., 0., 15.,    0.,  100.)
+	 xx = TangentialComponent(0., 0., 0., 15.,  100.,  100.)
+	 xx = TangentialComponent(0., 0., 0., 15., -100., -100.)
+
+	  write(*, *) 'trdist calling is finished'
+	  CLOSE(30)
+
+C	Создание файла для визуализации легенды (тангенциальной скорости)
+        CALL WriteXY(N, X, Y, CX, CY, Fi, Lambda, 'tangential.txt',1,tc)
+!	  CALL WriteXY(N, X, Y, CX, CY, Fi, Lambda, 'curve.txt',1,crv)
 
 	END
+
+
+
+c*********************************************************************
+c*
+c*					TangentialComponent
+c*
+c*********************************************************************
+	REAL FUNCTION TangentialComponent(CX, CY, X, Y, VX, VY)
+	  IMPLICIT NONE
+	  
+	  REAL, EXTERNAL :: asign
+	  
+	  REAL, INTENT(IN) :: CX, CY, X, Y, VX, VY
+
+	  REAL :: velocity, angle_of_velocity, angle_of_transect, 
+     *          cross_angle, angle_re_center, mx, my
+
+	  write(30, *) x, y, vx, vy
+
+	  if (vx == 0. .and. vy == 0.) then
+	    TangentialComponent = 0.
+	    RETURN
+	  end if
+	  
+	  velocity = sqrt(VX**2 + VY**2) / 100     ! [м/с]
+        angle_of_velocity = atan2(VY, VX)
+
+	  angle_of_transect = atan2(Y - CY, X - CX)						
+	
+	  cross_angle = min(	! угол пересечения вектора скорости и нормали к профилю
+     *    abs(amod(angle_of_transect + 3.14 / 2, 3.14) 
+     *	  - angle_of_velocity),
+     *    abs(amod(angle_of_transect - 3.14 / 2, 3.14) 
+     *	  - angle_of_velocity)
+     *  )
+
+	  mx = VX / 100
+	  my = VY / 100
+	  angle_re_center = acos((mx * (CX - X) + my * (CY - Y)) / 
+	*    (sqrt(mx**2 + my**2) * sqrt((CX - X)**2 + (CY - Y)**2)))
+
+	  TangentialComponent = angle_re_center / 3.14 * 180 * 
+		! знак завихренности относительно центра (+: по часовой стрелке)
+     *    asign(my * (CX - X) - mx * (CY - Y))
+
+!	  TangentialComponent = velocity * cos(cross_angle)	  !* SIGN !!!
+
+	  write(30, '(11F10.4)') X, Y, VX, VY, velocity, angle_of_velocity,
+     *    ,angle_of_transect, cross_angle, TangentialComponent, mx, my 
+
+	END
+	  
+
 	  
 c*********************************************************************
 c*
@@ -856,6 +969,9 @@ c*********************************************************************
 	  INTEGER i
 	  REAL dr
 
+	  write(*, *) 'CalculateSumParameters: N, INDEX', N, INDEX, X(1), 
+     *     Y(1), cx, cy, x(2), y(2)
+
 	  Vl = 0.; Rl = 0.; VRl = 0.; RRl = 0.
 	  Vg = 0.; Rg = 0.; VRg = 0.; RRg = 0.
 	  Nl = 0; Ng = 0		 
@@ -864,12 +980,14 @@ c*********************************************************************
         do i = 1, N
 	    dr = sqrt((CX - X(i))**2 + (CY - Y(i))**2)
 	    if (i <= INDEX) then
+	      write(*, *) '<=', dr, V(i)
 	      Vl = Vl + V(i)
 	      Rl = Rl + dr
 		  VRl = VRl + V(i) * dr
 	      RRl = RRl + dr * dr
 		  Nl = Nl + 1
 	    else
+	      write(*, *) '>', dr, V(I)
 	      Vg = Vg + V(i)
 	      Rg = Rg + dr
 		  VRg = VRg + V(i) * dr
@@ -877,6 +995,8 @@ c*********************************************************************
 		  Ng = Ng + 1
 	    endif
 	  enddo
+
+	write(*, *) 'vrg, vg', VRg, Vg
 
 	END
 
@@ -911,6 +1031,8 @@ c*********************************************************************
 	  REAL    :: factor
 	  INTEGER :: a = 0, b = 0
 
+	  write(*, *) 'CalculateRmA0 is running'
+
 	  if (INDEX.eq.1) factor = 1.0
 	  if (INDEX.eq.2) factor = -1.0
 	  if (INDEX.ne.1.and.INDEX.ne.2) then
@@ -920,12 +1042,15 @@ c*********************************************************************
 
 	  DRm = 100500.
 
+	write(*, *) 'VRg, R0, Vg', VRg, R0, Vg
+
 	  Rm = (R0 *(VRl*(RRg-2*R0*Rg+R0*R0*Ng)-2*RRl*(VRg-R0*Vg)) + 
      *        factor *
 	*        R0*sqrt((2*RRl*(VRg-R0*Vg)-VRl*(RRg-2*R0*Rg+R0*R0*Ng))**2
      *	    + 4*RRl*(VRg-R0*Vg)*
      *		 (VRl*(RRg-2*R0*Rg+R0*R0*Ng)-RRl*(VRg-R0*Vg)))) / 
      *		 (2*VRl*(RRg-2*R0*Rg+R0*R0*Ng)-RRl*(VRg-R0*Vg))
+	  write(*, *) 'after Rm'
 C		проверка на корректность параметра Rm
 	  if (Rm.gt.0.and.Rm.lt.R0) then
 C		расчет A0
@@ -933,6 +1058,7 @@ C		расчет A0
 		A0 = (Rm*(VRg-R0*Vg)-VRl*(R0-Rm)) / 
      *       (Rm*Rm*(RRg-2*R0*Rg+R0*R0*Ng)+RRl*(R0-Rm)**2) *
      *	   (R0*Rm*(R0-Rm)) / 2
+	    write(*, *) 'after A0'
 	    DRm = min(abs(Rm-DR1), abs(Rm-DR2))
 !          write(*, '(A, I1)') ' CORRECT RM ', INDEX
 	    if (Rm.ge.DR1.and.Rm.le.DR2) then
@@ -942,6 +1068,7 @@ C		расчет A0
 !	    write(*, *) 'A0 =', A0
 	  endif
 	  IRC = 2 * a + b
+	  write(*, *) 'CalculateRmA0 have finished'
 	END
 
 
@@ -1043,16 +1170,17 @@ c*********************************************************************
 	  write(17, *) (C(i), i=1,(nk-1)*6)
 	  close(17)	
         lenc=(nk-1)*3
-        write(*, *) 'WSXY: lenc =', lenc
         DO i = 0, N 
 	    ts = TK(1) + (TK(NK) - TK(1)) * i / N 
 		call  icsevu(tk,xk,nk,c,        nk-1,ts,x(i+1),1,ier)
 	    call  icsevu(tk,yk,nk,c(lenc+1),nk-1,ts,y(i+1),1,ier)
 	  END DO
-
+	
 	  CALL WriteXY(N+1, x, y, 0., 0., FI, LAMBDA, FILENAME, IFLGW, 
      *    legend)
-	END
+ 
+ 	  write(*, *) 'WriteSplineXY has finished'
+      END
 
 
 

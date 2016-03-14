@@ -60,16 +60,28 @@ c*********************************************************************
 	integer*2 kod(6)
 	data kod/2,1,80,100,1000,0/parm/0.,.1,100.,.001,1.,.001/
 	data pi/3.1415926/,onedg/11.124/
+
+	open(32, FILE = 'trdistt.log', ACTION = 'write')
+	write(32, *) '       TRDIST log         '
+	write(32, *) 'fi, lambda, xb, yb =', fi, lambda, xb, yb
+	write(32, *) 'xk, yk, tk,     nknot =', nknot
+	write(32, '(3F12.6)') (xk(i), yk(i), tk(i), i = 1, nknot)
+	write(32, *) 'SC:    ic =', ic
+	write(32, '(3F12.6)') ((c(i, j, 1), i=1,nknot), j=1,3)
+	write(32, '(3F12.6)') ((c(i, j, 2), i=1,nknot), j=1,3)
+	write(32, *) 'eps, iflg =', eps, iflg
+      close(32)
+!	stop
 c*              поиск ближайшего к точке (xb,yb) узла сплайна
 	dist=1.e32
 	is=0
 	do 10 i=1,nknot
-	d=(xk(i)-xb)**2+(yk(i)-yb)**2
-	if(d.ge.dist) go to 10
+	  d=(xk(i)-xb)**2+(yk(i)-yb)**2
+	  if(d.ge.dist) go to 10
 c*              найден более близкий узел
-	is=i
-	dist=d
-10      continue
+	    is=i
+	    dist=d
+10    continue
 c
 	x=xk(is)
 	y=yk(is)
@@ -89,20 +101,25 @@ c
 20      do 70 i=ib,ie
 c*              расчет коэффициентов полинома - производной от
 c*              функции расстояния между точками
-		do 30 j=1,6
-30              a(j)=0.
-	xyd(1)=xk(i)-xb
-	xyd(2)=yk(i)-yb
-		do 40 j=1,2
+	  do j=1,6
+          a(j)=0.
+	  end do
+
+	  xyd(1)=xk(i)-xb
+	  xyd(2)=yk(i)-yb
+	
+        do 40 j=1,2
 		a(1)=a(1)+3.*c(i,3,j)**2
 		a(2)=a(2)+5.*c(i,2,j)*c(i,3,j)
 		a(3)=a(3)+4.*c(i,3,j)*c(i,1,j)+2.*c(i,2,j)**2
 		a(4)=a(4)+3.*c(i,3,j)*xyd(j)+3.*c(i,2,j)*c(i,1,j)
 		a(5)=a(5)+2.*c(i,2,j)*xyd(j)+c(i,1,j)**2
 		a(6)=a(6)+c(i,1,j)*xyd(j)
-40              continue
+40      continue
+        write(*, *) ' A array:', A
 c*              расчет корней полинома
 	ns=5
+	write(*, *) 'TRDIST: call zpolr'
 50    call  zpolr(a(6-ns),ns,z,ier)
 	ns=ns-1
 	if(ier.eq.130.and.ns.eq.0) go to 70
@@ -114,6 +131,7 @@ c*              проверяем получившиеся точки на оптимальность dist
 c*              корень полинома не комплексный
 		if(z(1,j).lt.0..or.z(1,j).gt.tk(i+1)-tk(i)) go to 60
 c*              t-координата (z(1,j)) - в нужном диапозоне
+          write(*, *) 'TRDIST: call icsevu'
 		call  icsevu(tk,xk,nknot,c,ic,z(1,j)+tk(i),xx,1,ier)
 		call  icsevu(tk,yk,nknot,c(1,1,2),ic,z(1,j)+tk(i),yy,
      *          1,ier)
